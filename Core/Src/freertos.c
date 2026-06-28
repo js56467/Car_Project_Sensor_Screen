@@ -28,6 +28,7 @@
 #include "UART_Task.h"
 #include "MY_PWM.h"
 #include "LightSensor.h"
+#include "Get_Time.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -143,6 +144,8 @@ void MX_FREERTOS_Init(void) {
   UARTTaskHandle=xTaskCreateStatic(UART_Task,"PrintTask",128,NULL,osPriorityNormal,g_pucStackofUARTTask,&g_TCBofUARTTask);
   /* 创建红外传感器数据任务 */
   LightSensorHandle=xTaskCreateStatic(LightSensor_Task,"LightSensor_Task",128,NULL,osPriorityNormal,g_pucStackofLightSensorTask,&g_TCBofLightSensorTask);
+  /* 创建定时器任务,通过提高优先级来使时间戳++ */
+   xTaskCreate( RTime_MakeUnixUP, "GetRTime++",128,NULL,osPriorityNormal+5, NULL ); // 任务句柄, 以后使用它来操作这个任务
   /* USER CODE END RTOS_THREADS */
 
   /* USER CODE BEGIN RTOS_EVENTS */

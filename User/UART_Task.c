@@ -5,6 +5,7 @@
 #include "task.h"
 #include "string.h"
 #include "MY_PWM.h"
+#include "OLED.h"
 static uint8_t g_uart_Rx_Buf[128];
 static uint16_t UART_Num=0;
 static uint8_t Data=0;
@@ -65,7 +66,7 @@ HAL_StatusTypeDef UART_Send_Command(char *Command){
 /* 将得到的速度发送到触摸屏 */
 HAL_StatusTypeDef UART_SendSpeed(uint8_t PWM_Speed){
 char cmd[128];
-	sprintf(cmd,"no.val=%d\r\n",PWM_Speed);
+	sprintf(cmd,"EveryData.n0.val=%d\r\n",PWM_Speed);
     UART_Send_Command(cmd);
 return HAL_OK;
 }
@@ -73,7 +74,7 @@ return HAL_OK;
 /* 得到的距离发送到触摸屏 */
 HAL_StatusTypeDef UART_SendDistant(uint8_t Distant){
 	char cmd[128];
-	sprintf(cmd,"n1.val=%d\r\n",Distant);
+	sprintf(cmd,"EveryData.n1.val=%d\r\n",Distant);
 	UART_Send_Command(cmd);
 return HAL_OK;
 }
@@ -81,7 +82,7 @@ return HAL_OK;
 /* 得到的运行时间发送到触摸屏 */
 HAL_StatusTypeDef UART_SendRunTime(uint16_t RunTime){
 	char cmd[128];
-	sprintf(cmd,"n2.val=%d\r\n",RunTime);
+	sprintf(cmd,"EveryData.n2.val=%d\r\n",RunTime);
 	UART_Send_Command(cmd);
 return HAL_OK;
 }
@@ -135,6 +136,7 @@ void UART_Task(void *params){
 	/* 使能接收 */
 	HAL_UART_Receive_IT(&huart1,&Data,1);
 	UART_Send_Command("ABC\r\n");
+	
 	while(1){
     //printf("我已准备就绪，可以发送数据\r\n");
 	if(strcmp((char *)g_uart_Rx_Buf,"01 02 AA")==0){
