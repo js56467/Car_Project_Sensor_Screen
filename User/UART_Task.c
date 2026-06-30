@@ -6,9 +6,20 @@
 #include "string.h"
 #include "MY_PWM.h"
 #include "OLED.h"
+/* 小车轮胎半径(单位毫米) */
+#define Car_Tire_Redis  34  
+/* 电机每秒最大转速 */
+#define ElectricMachine_Speed 3.5
 static uint8_t g_uart_Rx_Buf[128];
 static uint16_t UART_Num=0;
 static uint8_t Data=0;
+ uint16_t All_Distance;
+static float Distance;
+uint8_t RPWM_Speed;
+extern uint32_t UnixTime;
+extern uint32_t Real_Time;
+
+
 /* 重定向 */
 int fputc(int ch,FILE *F){
 	HAL_UART_Transmit(&huart1,(uint8_t *)&ch,1,300);
@@ -27,6 +38,12 @@ int fputc(int ch,FILE *F){
 		/* 使能下一个数据接收 */
 	HAL_UART_Receive_IT(&huart1,&Data,1);
    }
+}
+
+/* 得到每秒的距离(一转) */
+float Get_Distance_Second(void){
+	Distance=Car_Tire_Redis*ElectricMachine_Speed;
+	return Distance;
 }
 
 /* 等待接收完成 */
@@ -64,19 +81,21 @@ HAL_StatusTypeDef UART_Send_Command(char *Command){
 
 
 /* 将得到的速度发送到触摸屏 */
-HAL_StatusTypeDef UART_SendSpeed(uint8_t PWM_Speed){
+HAL_StatusTypeDef UART_SendSpeed(uint8_t RPWM_Speed){
 char cmd[128];
-	sprintf(cmd,"EveryData.n0.val=%d\r\n",PWM_Speed);
+	sprintf(cmd,"EveryData.n0.val=%d\r\n",RPWM_Speed);
     UART_Send_Command(cmd);
 return HAL_OK;
 }
 
 /* 得到的距离发送到触摸屏 */
-HAL_StatusTypeDef UART_SendDistant(uint8_t Distant){
+uint16_t UART_Send_Distant(void){
 	char cmd[128];
-	sprintf(cmd,"EveryData.n1.val=%d\r\n",Distant);
+	All_Distance=(float)RPWM_Speed/100.0f*ElectricMachine_Speed*Car_Tire_Redis*3.14159f*2*0.001*(Real_Time-1782635570);
+	
+	sprintf(cmd,"EveryData.n1.val=%d\r\n",All_Distance);
 	UART_Send_Command(cmd);
-return HAL_OK;
+	return All_Distance;
 }
 
 /* 得到的运行时间发送到触摸屏 */
@@ -89,35 +108,35 @@ return HAL_OK;
 
 /* 串口屏发送数据,驱动小车匀速转动 */
 HAL_StatusTypeDef UART_PWM_AveRun(void){
-	MY_PWM_Ave_Run();
+	MY_PWM_Ave_Run(20);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车匀加速转动 */
 HAL_StatusTypeDef UART_PWM_Ave_Acc_Run(void){
-	MY_PWM_Ave_Acc_Run();
+	MY_PWM_Ave_Acc_Run(10);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车匀减速转动 */
 HAL_StatusTypeDef UART_PWM_Ave_Down_Run(void){
-	MY_PWM_Ave_Down_Run();
+	MY_PWM_Ave_Down_Run(10);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车阶梯加速转动 */
 HAL_StatusTypeDef UART_PWM_Ladder_Acc_Run(void){
-	MY_PWM_Ladder_Acc_Speed_Run();
+	MY_PWM_Ladder_Acc_Speed_Run(10);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车阶梯反转转动 */
 HAL_StatusTypeDef UART_PWM_back_Run(void){
-	MY_PWM_Back_Run();
+	MY_PWM_Back_Run(50);
 	UART_Clean();
 	return HAL_OK;
 }

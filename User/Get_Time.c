@@ -11,6 +11,7 @@
 struct Get_Time MY_Time;
 extern QueueHandle_t g_RealTimeHandle;
 uint32_t UnixTime=1782635570;
+uint32_t Real_Time;
 /* 判断是否闰年 */
 static uint8_t IsLeapYear(uint16_t year)
 {
@@ -92,8 +93,9 @@ void TimestampToTime(uint32_t timestamp)
 /* 让时间戳自加1的函数,通过提高该任务优先级来完成模拟每秒+1的过程(单纯移植不用该函数) */
 void RTime_MakeUnixUP(void *params){
 	while(1){
-	UnixTime++;
+	Real_Time=UnixTime++;
 	vTaskDelay(1000);
+		
 	}
 }
 

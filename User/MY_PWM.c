@@ -4,7 +4,8 @@
 #include "usart.h"
 #include "FreeRTOS.h"
 #include "task.h"
-uint8_t *Speed;
+#include "OLED.h"
+extern uint8_t RPWM_Speed;
 void My_PWM_Init(void){
 HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_3);
 }
@@ -15,30 +16,38 @@ __HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_3,Speed);
 	
 	/* 正转 */
 	if(dir==1){
-	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_1,GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_2,GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_12,GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_13,GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_14,GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_15,GPIO_PIN_RESET);
 	}
 	/* 反转 */
 	else if(dir==0){
-	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_2,GPIO_PIN_SET);
-	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_1,GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_12,GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_13,GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_14,GPIO_PIN_SET);
+	HAL_GPIO_WritePin(GPIOB,GPIO_PIN_15,GPIO_PIN_RESET);
 	}
 	return HAL_OK;
 }
 
 /*匀速*/
-HAL_StatusTypeDef MY_PWM_Ave_Run(void){
-	Motor_Set(50,1);
+HAL_StatusTypeDef MY_PWM_Ave_Run(uint8_t Compare){
+	Motor_Set(Compare,1);
+	RPWM_Speed=Compare;
 	return HAL_OK;
 
 }
 /* 匀加速 */
-HAL_StatusTypeDef MY_PWM_Ave_Acc_Run(void){
-	int8_t Speed=20;
-	for(Speed=20;Speed<100;Speed++){
-	Motor_Set(Speed,1);
-	if(Speed>=100){
-		Speed=100;
+HAL_StatusTypeDef MY_PWM_Ave_Acc_Run(uint8_t Compare_Start){
+	uint8_t i;
+	for(i=Compare_Start;i<80;i++){
+	Motor_Set(i,1);
+	RPWM_Speed=i;
+	OLED_ShowNum(4,1,RPWM_Speed,3);
+	
+	if(i>=80){
+	i=80;
 	}
 	vTaskDelay(100);
   }
@@ -46,35 +55,46 @@ HAL_StatusTypeDef MY_PWM_Ave_Acc_Run(void){
 }
 
 /*匀减速*/
-HAL_StatusTypeDef MY_PWM_Ave_Down_Run(void){
-	int8_t Speed=60;
-	Motor_Set(Speed--,1);
-	if(Speed<=20){
-	Speed=20;
+HAL_StatusTypeDef MY_PWM_Ave_Down_Run(uint8_t Compare_Start){
+	uint8_t i;
+	for(i=Compare_Start;i>10;i--){
+	Motor_Set(i,1);
+	RPWM_Speed=i;
+	OLED_ShowNum(4,1,RPWM_Speed,3);
+	if(i<=10){
+	i=10;
 	}
+	vTaskDelay(100);
+  }
 	return HAL_OK;
 }
 
 /* 阶梯加速 */
-HAL_StatusTypeDef MY_PWM_Ladder_Acc_Speed_Run(void){
-	int8_t Speed=0;
-	Motor_Set(Speed,1);
-	Speed+=10;
-	if(Speed>=100){
-	Speed=100;
+HAL_StatusTypeDef MY_PWM_Ladder_Acc_Speed_Run(uint8_t Compare_Start){
+	uint8_t i;
+	for(i=Compare_Start;i<80;i+=10){
+	Motor_Set(i,1);
+	RPWM_Speed=i;
+	OLED_ShowNum(4,1,RPWM_Speed,3);
+	if(i>=80){
+	i=80;
 	}
+	vTaskDelay(1000);
+}
 	return HAL_OK;
 }
 
 /* 反转 */
-HAL_StatusTypeDef MY_PWM_Back_Run(void){
-	Motor_Set(50,0);
+HAL_StatusTypeDef MY_PWM_Back_Run(uint8_t Compare){
+	Motor_Set(Compare,0);
+	RPWM_Speed=Compare;
 	return HAL_OK;
 }
 
 /* 停止 */
 HAL_StatusTypeDef MY_PWM_Stop(void){
 	Motor_Set(0,1);
+	RPWM_Speed=0;
 	return HAL_OK;
 }
 
