@@ -5,6 +5,7 @@
 #include "FreeRTOS.h"
 #include "task.h"
 #include "OLED.h"
+#include "UART_Task.h"
 extern uint8_t RPWM_Speed;
 void My_PWM_Init(void){
 HAL_TIM_PWM_Start(&htim3,TIM_CHANNEL_3);
@@ -35,6 +36,8 @@ __HAL_TIM_SET_COMPARE(&htim3,TIM_CHANNEL_3,Speed);
 HAL_StatusTypeDef MY_PWM_Ave_Run(uint8_t Compare){
 	Motor_Set(Compare,1);
 	RPWM_Speed=Compare;
+	/* 给串口屏发送具体车速数据 */
+	UART_SendSpeed(Compare);
 	return HAL_OK;
 
 }
@@ -45,10 +48,11 @@ HAL_StatusTypeDef MY_PWM_Ave_Acc_Run(uint8_t Compare_Start){
 	Motor_Set(i,1);
 	RPWM_Speed=i;
 	OLED_ShowNum(4,1,RPWM_Speed,3);
-	
+	/* 给串口屏发送具体车速数据 */
+	UART_SendSpeed(i);
 	if(i>=80){
-	i=80;
 	}
+	i=80;
 	vTaskDelay(100);
   }
 	return HAL_OK;
@@ -64,6 +68,8 @@ HAL_StatusTypeDef MY_PWM_Ave_Down_Run(uint8_t Compare_Start){
 	if(i<=10){
 	i=10;
 	}
+	/* 给串口屏发送具体车速数据 */
+	UART_SendSpeed(i);
 	vTaskDelay(100);
   }
 	return HAL_OK;
@@ -79,6 +85,8 @@ HAL_StatusTypeDef MY_PWM_Ladder_Acc_Speed_Run(uint8_t Compare_Start){
 	if(i>=80){
 	i=80;
 	}
+	/* 给串口屏发送具体车速数据 */
+	UART_SendSpeed(i);
 	vTaskDelay(1000);
 }
 	return HAL_OK;
@@ -88,6 +96,8 @@ HAL_StatusTypeDef MY_PWM_Ladder_Acc_Speed_Run(uint8_t Compare_Start){
 HAL_StatusTypeDef MY_PWM_Back_Run(uint8_t Compare){
 	Motor_Set(Compare,0);
 	RPWM_Speed=Compare;
+	/* 给串口屏发送具体车速数据 */
+	UART_SendSpeed(Compare);
 	return HAL_OK;
 }
 
@@ -95,6 +105,8 @@ HAL_StatusTypeDef MY_PWM_Back_Run(uint8_t Compare){
 HAL_StatusTypeDef MY_PWM_Stop(void){
 	Motor_Set(0,1);
 	RPWM_Speed=0;
+	/* 给串口屏发送具体车速数据 */
+	UART_SendSpeed(0);
 	return HAL_OK;
 }
 

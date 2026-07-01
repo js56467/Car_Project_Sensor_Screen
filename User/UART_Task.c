@@ -6,19 +6,34 @@
 #include "string.h"
 #include "MY_PWM.h"
 #include "OLED.h"
+#include "Get_Time.h"
+#include "queue.h"
 /* 小车轮胎半径(单位毫米) */
 #define Car_Tire_Redis  34  
 /* 电机每秒最大转速 */
-#define ElectricMachine_Speed 3.5
+#define ElectricMachine_Speed  	    3.5
+/* 控制电机匀速的速度 */
+#define Motor_Ave_Start_Speed   	20
+/* 控制电机匀加速的初速度 */
+#define Motor_Ave_Acc_Start_Speed   10
+/* 控制电机匀减速的初速度 */
+#define Motor_Ave_Down_Speed        10
+/* 控制电机阶梯加速的初速度 */
+#define Motor_Ladder_Acc_Speed		10
+/* 控制电机反转的初速度 */
+#define Motor_Ave_Back_Speed   		20
+
+extern QueueHandle_t HandleOfRtime;
+
 static uint8_t g_uart_Rx_Buf[128];
 static uint16_t UART_Num=0;
 static uint8_t Data=0;
- uint16_t All_Distance;
-static float Distance;
+static uint16_t All_Distance;
+
 uint8_t RPWM_Speed;
 extern uint32_t UnixTime;
 extern uint32_t Real_Time;
-
+extern struct Get_Time MY_Time;
 
 /* 重定向 */
 int fputc(int ch,FILE *F){
@@ -42,6 +57,7 @@ int fputc(int ch,FILE *F){
 
 /* 得到每秒的距离(一转) */
 float Get_Distance_Second(void){
+	float Distance=0;
 	Distance=Car_Tire_Redis*ElectricMachine_Speed;
 	return Distance;
 }
@@ -91,8 +107,8 @@ return HAL_OK;
 /* 得到的距离发送到触摸屏 */
 uint16_t UART_Send_Distant(void){
 	char cmd[128];
-	All_Distance=(float)RPWM_Speed/100.0f*ElectricMachine_Speed*Car_Tire_Redis*3.14159f*2*0.001*(Real_Time-1782635570);
-	
+	/* 单位CM */
+	All_Distance=(float)RPWM_Speed/100.0f*ElectricMachine_Speed*Car_Tire_Redis*3.14159f*2*0.001*(Real_Time-UnixTime)*10;
 	sprintf(cmd,"EveryData.n1.val=%d\r\n",All_Distance);
 	UART_Send_Command(cmd);
 	return All_Distance;
@@ -108,46 +124,70 @@ return HAL_OK;
 
 /* 串口屏发送数据,驱动小车匀速转动 */
 HAL_StatusTypeDef UART_PWM_AveRun(void){
-	MY_PWM_Ave_Run(20);
+	/* 由于我在该函数设置了给串口屏发送数据的函数,所以该函数不仅设置了速度而且将数据发送给了串口屏 */
+	MY_PWM_Ave_Run(Motor_Ave_Start_Speed);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车匀加速转动 */
 HAL_StatusTypeDef UART_PWM_Ave_Acc_Run(void){
-	MY_PWM_Ave_Acc_Run(10);
+	/* 由于我在该函数设置了给串口屏发送数据的函数,所以该函数不仅设置了速度而且将数据发送给了串口屏 */
+	MY_PWM_Ave_Acc_Run(Motor_Ave_Acc_Start_Speed);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车匀减速转动 */
 HAL_StatusTypeDef UART_PWM_Ave_Down_Run(void){
-	MY_PWM_Ave_Down_Run(10);
+	/* 由于我在该函数设置了给串口屏发送数据的函数,所以该函数不仅设置了速度而且将数据发送给了串口屏 */
+	MY_PWM_Ave_Down_Run(Motor_Ave_Down_Speed);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车阶梯加速转动 */
 HAL_StatusTypeDef UART_PWM_Ladder_Acc_Run(void){
-	MY_PWM_Ladder_Acc_Speed_Run(10);
+	/* 由于我在该函数设置了给串口屏发送数据的函数,所以该函数不仅设置了速度而且将数据发送给了串口屏 */
+	MY_PWM_Ladder_Acc_Speed_Run(Motor_Ladder_Acc_Speed);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车阶梯反转转动 */
 HAL_StatusTypeDef UART_PWM_back_Run(void){
-	MY_PWM_Back_Run(50);
+	/* 由于我在该函数设置了给串口屏发送数据的函数,所以该函数不仅设置了速度而且将数据发送给了串口屏 */
+	MY_PWM_Back_Run(Motor_Ave_Back_Speed);
 	UART_Clean();
 	return HAL_OK;
 }
 
 /* 串口屏发送数据,驱动小车停止转动 */
 HAL_StatusTypeDef UART_PWM_STOP_Run(void){
+	/* 由于我在该函数设置了给串口屏发送数据的函数,所以该函数不仅设置了速度而且将数据发送给了串口屏 */
 	MY_PWM_Stop();
 	UART_Clean();
 	return HAL_OK;
 }
 
+/* 给串口屏发送时间 */
+HAL_StatusTypeDef UART_Send_Time(uint32_t Real_Time_Now){
+char cmd1[128],cmd2[128],cmd3[128],cmd4[128],cmd5[128],cmd6[128];;
+	TimestampToTime(Real_Time_Now);
+	sprintf(cmd1,"Time.n0.val=%d",MY_Time.Real_Year);
+	sprintf(cmd2,"Time.n1.val=%d",MY_Time.Real_Month);
+//	sprintf(cmd3,"Time.n2.val=%d",MY_Time.Real_Day);
+//	sprintf(cmd4,"Time.n3.val=%d",MY_Time.Real_Hour);
+//	sprintf(cmd5,"Time.n4.val=%d",MY_Time.Real_Minute);
+//	sprintf(cmd6,"Time.n5.val=%d",MY_Time.Real_Second);
+//	UART_Send_Command(cmd1);
+//	UART_Send_Command(cmd2);
+//	UART_Send_Command(cmd3);
+//	UART_Send_Command(cmd4);
+//	UART_Send_Command(cmd5);
+//	UART_Send_Command(cmd6);
+return HAL_OK;
+}
 
 
 void UART_Task(void *params){
@@ -158,32 +198,55 @@ void UART_Task(void *params){
 	
 	while(1){
     //printf("我已准备就绪，可以发送数据\r\n");
-	if(strcmp((char *)g_uart_Rx_Buf,"01 02 AA")==0){
+	if(strcmp((char *)g_uart_Rx_Buf,"01 02 A A")==0){
 	//匀速代码
+	UART_PWM_AveRun();
+
 	UART_Clean();
 	}
 	if(strcmp((char *)g_uart_Rx_Buf,"03 04 AA")==0){
 	//匀加速代码
+	UART_PWM_Ave_Acc_Run();
 	UART_Clean();
 	}
 	if(strcmp((char *)g_uart_Rx_Buf,"05 06 AA")==0){
 	//匀减速代码
+	UART_PWM_Ladder_Acc_Run();
+	
 	UART_Clean();
 	}
 	if(strcmp((char *)g_uart_Rx_Buf,"07 08 AA")==0){
 	//阶梯加速代码
+	UART_PWM_Ladder_Acc_Run();
 	UART_Clean();
 	}
 	if(strcmp((char *)g_uart_Rx_Buf,"09 10 AA")==0){
 	//反转代码
+	UART_PWM_back_Run();
 	UART_Clean();
 	}
 	if(strcmp((char *)g_uart_Rx_Buf,"00 00 FF")==0){
 	//停止代码
+	MY_PWM_Stop();
 	UART_Clean();
 	}
-    vTaskDelay(1000);
+	/* 给串口屏发送距离 */
+	UART_Send_Distant();
+	//xQueueReceive(HandleOfRtime,&Real_Time,portMAX_DELAY);
+	/* 给串口屏发送时间(年月日时分秒6个参数) */
+	UART_Send_Time(Real_Time);
+	TimestampToTime(Real_Time);
+	OLED_ShowNum(1,1,MY_Time.Real_Year,4);
+	OLED_ShowNum(1,8,MY_Time.Real_Month,2);
+	OLED_ShowNum(2,1,MY_Time.Real_Day,2);
+	OLED_ShowNum(2,8,MY_Time.Real_Hour,2);
+	OLED_ShowNum(3,1,MY_Time.Real_Minute,2);
+	OLED_ShowNum(3,8,MY_Time.Real_Second,2);
+	OLED_ShowNum(4,1,UART_Send_Distant(),6);
+    vTaskDelay(200);
 	}
 }
+
+
 
 
