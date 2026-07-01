@@ -19,5 +19,5 @@ HAL_StatusTypeDef UART_PWM_Ave_Down_Run(void);
 HAL_StatusTypeDef UART_PWM_Ladder_Acc_Run(void);
 HAL_StatusTypeDef UART_PWM_back_Run(void);
 HAL_StatusTypeDef UART_PWM_STOP_Run(void);
-
+HAL_StatusTypeDef UART_Set_Time_10Second(void);
 #endif

@@ -23,14 +23,17 @@
 /* 控制电机反转的初速度 */
 #define Motor_Ave_Back_Speed   		20
 
-extern QueueHandle_t HandleOfRtime;
+
+extern QueueHandle_t g_RealTimeHandle;
 
 static uint8_t g_uart_Rx_Buf[128];
 static uint16_t UART_Num=0;
 static uint8_t Data=0;
 static uint16_t All_Distance;
-
+/* 小车速度 */
 uint8_t RPWM_Speed;
+/* 临时变量,用于计时运行10s,此处暂时没想到要怎么只让临时变量只等于Real_Time一次,我就只能把这个变量和函数分开写了,虽然看起来不太专业,但其实都是一样的哈哈 */
+uint8_t Temp_Time;
 extern uint32_t UnixTime;
 extern uint32_t Real_Time;
 extern struct Get_Time MY_Time;
@@ -108,7 +111,7 @@ return HAL_OK;
 uint16_t UART_Send_Distant(void){
 	char cmd[128];
 	/* 单位CM */
-	All_Distance=(float)RPWM_Speed/100.0f*ElectricMachine_Speed*Car_Tire_Redis*3.14159f*2*0.001*(Real_Time-UnixTime)*10;
+	All_Distance=(float)RPWM_Speed/100.0f*ElectricMachine_Speed*Car_Tire_Redis*3.14159f*2*0.001*(Real_Time-UnixTime)*50;
 	sprintf(cmd,"EveryData.n1.val=%d\r\n",All_Distance);
 	UART_Send_Command(cmd);
 	return All_Distance;
@@ -172,30 +175,51 @@ HAL_StatusTypeDef UART_PWM_STOP_Run(void){
 
 /* 给串口屏发送时间 */
 HAL_StatusTypeDef UART_Send_Time(uint32_t Real_Time_Now){
-char cmd1[128],cmd2[128],cmd3[128],cmd4[128],cmd5[128],cmd6[128];;
+	/* 为何设置cmd1-6就不行嘞？ */
+char cmd[128];
 	TimestampToTime(Real_Time_Now);
-	sprintf(cmd1,"Time.n0.val=%d",MY_Time.Real_Year);
-	sprintf(cmd2,"Time.n1.val=%d",MY_Time.Real_Month);
-//	sprintf(cmd3,"Time.n2.val=%d",MY_Time.Real_Day);
-//	sprintf(cmd4,"Time.n3.val=%d",MY_Time.Real_Hour);
-//	sprintf(cmd5,"Time.n4.val=%d",MY_Time.Real_Minute);
-//	sprintf(cmd6,"Time.n5.val=%d",MY_Time.Real_Second);
-//	UART_Send_Command(cmd1);
-//	UART_Send_Command(cmd2);
-//	UART_Send_Command(cmd3);
-//	UART_Send_Command(cmd4);
-//	UART_Send_Command(cmd5);
-//	UART_Send_Command(cmd6);
+	sprintf(cmd,"Time.n0.val=%d",MY_Time.Real_Year);
+	UART_Send_Command(cmd);
+	sprintf(cmd,"Time.n1.val=%d",MY_Time.Real_Month);
+	UART_Send_Command(cmd);
+	sprintf(cmd,"Time.n2.val=%d",MY_Time.Real_Day);
+	UART_Send_Command(cmd);
+	sprintf(cmd,"Time.n3.val=%d",MY_Time.Real_Hour);
+	UART_Send_Command(cmd);
+	sprintf(cmd,"Time.n4.val=%d",MY_Time.Real_Minute);
+	UART_Send_Command(cmd);
+	sprintf(cmd,"Time.n5.val=%d",MY_Time.Real_Second);
+	UART_Send_Command(cmd);
 return HAL_OK;
 }
 
+/* 通过触摸屏按键发送指令,计时匀速运行10s */
+HAL_StatusTypeDef UART_Set_Time_10Second(void){
+	if(Real_Time<=Temp_Time+10){
+	UART_PWM_AveRun();
+	}else
+	{
+	UART_PWM_STOP_Run();
+	}
+	return HAL_OK;
+}
+/* 通过触摸屏按键发送指令,计时匀速运行20s */
+HAL_StatusTypeDef UART_Set_Time_20Second(void){
+	if(Real_Time<=Temp_Time+20){
+	UART_PWM_AveRun();
+	}else
+	{
+	UART_PWM_STOP_Run();
+	}
+	return HAL_OK;
+}
 
 void UART_Task(void *params){
 	printf("12\r\n");
 	/* 使能接收 */
 	HAL_UART_Receive_IT(&huart1,&Data,1);
 	UART_Send_Command("ABC\r\n");
-	
+	//UART_PWM_AveRun();
 	while(1){
     //printf("我已准备就绪，可以发送数据\r\n");
 	if(strcmp((char *)g_uart_Rx_Buf,"01 02 A A")==0){
@@ -230,12 +254,23 @@ void UART_Task(void *params){
 	MY_PWM_Stop();
 	UART_Clean();
 	}
+	
+	if(strcmp((char *)g_uart_Rx_Buf,"10 10 FF")==0){
+	/* 计时10s */
+	Temp_Time=Real_Time;
+	UART_Set_Time_10Second();
+	}
+	
+	if(strcmp((char *)g_uart_Rx_Buf,"10 10 FF")==0){
+	/* 计时20s */
+	Temp_Time=Real_Time;
+	UART_Set_Time_20Second();
+	}
 	/* 给串口屏发送距离 */
 	UART_Send_Distant();
-	//xQueueReceive(HandleOfRtime,&Real_Time,portMAX_DELAY);
+	xQueueReceive(g_RealTimeHandle,&Real_Time,portMAX_DELAY);
 	/* 给串口屏发送时间(年月日时分秒6个参数) */
 	UART_Send_Time(Real_Time);
-	TimestampToTime(Real_Time);
 	OLED_ShowNum(1,1,MY_Time.Real_Year,4);
 	OLED_ShowNum(1,8,MY_Time.Real_Month,2);
 	OLED_ShowNum(2,1,MY_Time.Real_Day,2);
@@ -243,6 +278,14 @@ void UART_Task(void *params){
 	OLED_ShowNum(3,1,MY_Time.Real_Minute,2);
 	OLED_ShowNum(3,8,MY_Time.Real_Second,2);
 	OLED_ShowNum(4,1,UART_Send_Distant(),6);
+	
+	/?测试定时有问题?/
+	for(int i=0;i<=2;i++){
+	Temp_Time=Real_Time;
+	UART_Set_Time_10Second();
+	}
+	//UART_Set_Time_20Second();
+	OLED_ShowNum(1,13,RPWM_Speed,3);
     vTaskDelay(200);
 	}
 }
