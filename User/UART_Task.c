@@ -24,19 +24,27 @@
 #define Motor_Ave_Back_Speed   		20
 
 
-extern QueueHandle_t g_RealTimeHandle;
+/* 设置定时器时间状态的枚举类型,用于计时小车10S/20S */
+typedef enum{
+Timer_Idle=0,
+Timer_10s_Run=1,
+Timer_20s_Run=2
+}Timer_State;
 
+extern QueueHandle_t g_RealTimeHandle;
 static uint8_t g_uart_Rx_Buf[128];
 static uint16_t UART_Num=0;
 static uint8_t Data=0;
 static uint16_t All_Distance;
+static Timer_State g_Timer_State=Timer_Idle;
 /* 小车速度 */
 uint8_t RPWM_Speed;
 /* 临时变量,用于计时运行10s,此处暂时没想到要怎么只让临时变量只等于Real_Time一次,我就只能把这个变量和函数分开写了,虽然看起来不太专业,但其实都是一样的哈哈 */
-uint8_t Temp_Time;
+uint32_t Temp_Time;
 extern uint32_t UnixTime;
 extern uint32_t Real_Time;
 extern struct Get_Time MY_Time;
+
 
 /* 重定向 */
 int fputc(int ch,FILE *F){
@@ -47,6 +55,7 @@ int fputc(int ch,FILE *F){
  void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)	 
 {
 	if(huart -> Instance==USART1){
+		
 	  /* 给全局缓冲区存一份,Cnt++表示记的数 */
 	g_uart_Rx_Buf[UART_Num++]=Data;
 	//printf("收到一字节:%02x\r\n",Data);
@@ -214,12 +223,24 @@ HAL_StatusTypeDef UART_Set_Time_20Second(void){
 	return HAL_OK;
 }
 
+/* 通过枚举类型来使TempTime和RealTime等于一次的情况下还不影响系统的实时性,说白了就是程序判断设立一个状态再在这个得到的判断的值来进行相应操作 */
+HAL_StatusTypeDef Timer_Enum_State_Judege(uint8_t State){
+switch(State){
+	
+	case Timer_10s_Run:if(Real_Time<=Temp_Time+10){UART_PWM_AveRun();}else{UART_PWM_STOP_Run();g_Timer_State=Timer_Idle;}break;
+	case Timer_20s_Run:if(Real_Time<=Temp_Time+20){UART_PWM_AveRun();}else{UART_PWM_STOP_Run();g_Timer_State=Timer_Idle;}break;
+	default: break;
+ }
+return HAL_OK;
+}
+
 void UART_Task(void *params){
 	printf("12\r\n");
 	/* 使能接收 */
 	HAL_UART_Receive_IT(&huart1,&Data,1);
 	UART_Send_Command("ABC\r\n");
 	//UART_PWM_AveRun();
+	//UART_PWM_Ladder_Acc_Run();
 	while(1){
     //printf("我已准备就绪，可以发送数据\r\n");
 	if(strcmp((char *)g_uart_Rx_Buf,"01 02 A A")==0){
@@ -258,13 +279,15 @@ void UART_Task(void *params){
 	if(strcmp((char *)g_uart_Rx_Buf,"10 10 FF")==0){
 	/* 计时10s */
 	Temp_Time=Real_Time;
-	UART_Set_Time_10Second();
+	g_Timer_State=Timer_10s_Run;
+	UART_Clean();
 	}
 	
-	if(strcmp((char *)g_uart_Rx_Buf,"10 10 FF")==0){
+	if(strcmp((char *)g_uart_Rx_Buf,"20 20 FF")==0){
 	/* 计时20s */
 	Temp_Time=Real_Time;
-	UART_Set_Time_20Second();
+	g_Timer_State=Timer_20s_Run;
+	UART_Clean();
 	}
 	/* 给串口屏发送距离 */
 	UART_Send_Distant();
@@ -277,13 +300,13 @@ void UART_Task(void *params){
 	OLED_ShowNum(2,8,MY_Time.Real_Hour,2);
 	OLED_ShowNum(3,1,MY_Time.Real_Minute,2);
 	OLED_ShowNum(3,8,MY_Time.Real_Second,2);
-	OLED_ShowNum(4,1,UART_Send_Distant(),6);
-	
-	/?测试定时有问题?/
-	for(int i=0;i<=2;i++){
-	Temp_Time=Real_Time;
-	UART_Set_Time_10Second();
-	}
+	//OLED_ShowNum(4,1,UART_Send_Distant(),6);
+	/* 测试定时函数 */
+	Timer_Enum_State_Judege(g_Timer_State);
+	//printf("RX[%d]",UART_Num);
+	//	printf("%s",g_uart_Rx_Buf);
+	//	OLED_ShowNum(2,13,2,1);
+
 	//UART_Set_Time_20Second();
 	OLED_ShowNum(1,13,RPWM_Speed,3);
     vTaskDelay(200);
